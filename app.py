@@ -9,6 +9,8 @@ from agents.matcher import ResumeMatcher
 from agents.writer import CoverLetterWriter
 from utils.parsing import normalize_text
 
+
+
 # --- Secrets & Config ---
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY", ""))
 EMBED_PROVIDER = st.secrets.get("EMBED_PROVIDER", os.getenv("EMBED_PROVIDER", "openai"))

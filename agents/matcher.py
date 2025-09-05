@@ -22,34 +22,34 @@ class ResumeMatcher:
         self.meta = []
 
 
-def build_or_load_index(self, resume_data: Dict):
-    """Build FAISS index from resume.json (experiences list)."""
-    experiences = []
-    for exp in resume_data.get("experiences", []):
-        txt = exp.get("description", "")
-        if exp.get("title"): txt = f"{exp['title']} — {txt}"
-        if exp.get("company"): txt = f"{exp['company']} | {txt}"
-        experiences.append(txt)
-    if not experiences:
-        raise ValueError("resume.json에 experiences가 없습니다.")
-    chunks = chunk_texts(experiences, chunk_size=400)
-    embeddings = self.client.embed(chunks)
-    dim = len(embeddings[0])
-    if faiss is None:
-        raise ImportError("faiss-cpu가 설치되어야 합니다. requirements.txt 참고")
-    index = faiss.IndexFlatIP(dim)
-    import numpy as np
-    vecs = np.array(embeddings, dtype="float32")
-    # 정규화로 내적=코사인 유사도 효과
-    faiss.normalize_L2(vecs)
-    index.add(vecs)
-    self.index = index
-    self.meta = chunks
-    # 저장
-    faiss.write_index(index, self.index_path)
-    with open(self.meta_path, "w", encoding="utf-8") as f:
-        import json
-        json.dump(self.meta, f, ensure_ascii=False, indent=2)
+    def build_or_load_index(self, resume_data: Dict):
+        """Build FAISS index from resume.json (experiences list)."""
+        experiences = []
+        for exp in resume_data.get("experiences", []):
+            txt = exp.get("description", "")
+            if exp.get("title"): txt = f"{exp['title']} — {txt}"
+            if exp.get("company"): txt = f"{exp['company']} | {txt}"
+            experiences.append(txt)
+        if not experiences:
+            raise ValueError("resume.json에 experiences가 없습니다.")
+        chunks = chunk_texts(experiences, chunk_size=400)
+        embeddings = self.client.embed(chunks)
+        dim = len(embeddings[0])
+        if faiss is None:
+            raise ImportError("faiss-cpu가 설치되어야 합니다. requirements.txt 참고")
+        index = faiss.IndexFlatIP(dim)
+        import numpy as np
+        vecs = np.array(embeddings, dtype="float32")
+        # 정규화로 내적=코사인 유사도 효과
+        faiss.normalize_L2(vecs)
+        index.add(vecs)
+        self.index = index
+        self.meta = chunks
+        # 저장
+        faiss.write_index(index, self.index_path)
+        with open(self.meta_path, "w", encoding="utf-8") as f:
+            import json
+            json.dump(self.meta, f, ensure_ascii=False, indent=2)
 
 
     def search(self, keywords: List[str], top_k: int = 6) -> List[Dict]:
