@@ -42,6 +42,18 @@ with st.sidebar:
     st.text_input("텍스트 생성 모델", value=TEXT_MODEL, key="text_model")
     st.radio("Writer 모드", options=["auto","llm","rule"], index=0, key="writer_mode", horizontal=True)
 
+
+try:
+    from utils.embedding import EmbeddingClient
+    if st.secrets.get("EMBED_PROVIDER", "huggingface") == "huggingface":
+        _warm = EmbeddingClient("huggingface",
+                                st.secrets.get("EMBED_MODEL", os.getenv("HF_EMBED_MODEL", "sentence-transformers/all-MiniLM-L6-v2")),
+                                st.secrets.get("HF_TOKEN", os.getenv("HF_TOKEN", "")))
+        _ = _warm.embed(["warmup"])
+        st.caption("🔄 [warmup] HF 임베딩 준비 완료")
+except Exception as _e:
+    st.caption(f"⚠️ [warmup 실패] {type(_e).__name__}: {str(_e)[:120]}")
+
 # --- Resume Loader ---
 st.subheader("1) 이력서/경험 데이터 업로드")
 col1, col2 = st.columns(2)
