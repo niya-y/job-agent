@@ -1,5 +1,26 @@
 # utils/embedding.py
 from typing import List
+import time
+
+def _to_1d_vector(x):
+    """List/np.array/토큰별 2D도 모두 1D로 변환 (평균 풀링)."""
+    try:
+        import numpy as np
+        arr = np.asarray(x, dtype="float32")
+        # shape: (tokens, dim) or (dim,)
+        if arr.ndim == 2:
+            arr = arr.mean(axis=0)
+        elif arr.ndim > 2:
+            arr = arr.reshape(-1, arr.shape[-1]).mean(axis=0)
+        return arr.astype("float32").tolist()
+    except Exception:
+        # numpy가 없거나 예외인 경우: 최대한 리스트로 변환 후 1차원화
+        if isinstance(x, list) and x and isinstance(x[0], list):
+            # [[token_emb], ...] 형태면 평균
+            dim = len(x[0])
+            cols = [sum(row[i] for row in x) / len(x) for i in range(dim)]
+            return cols
+        return x  # 이미 1D 리스트라고 가정
 
 class EmbeddingClient:
     def __init__(self, provider: str, model: str, api_key: str = ""):
@@ -29,17 +50,36 @@ class EmbeddingClient:
         if self.provider == "openai":
             resp = self.client.embeddings.create(model=self.model, input=texts)
             return [d.embedding for d in resp.data]
-
+        
         elif self.provider == "huggingface":
-            # feature-extraction 엔드포인트 호출
-            vecs: List[List[float]] = []
-            for t in texts:
-                out = self.client.feature_extraction(t)
-                # 일부 모델은 [[...]] 형태로 반환 → 1차원으로 정규화
-                if out and isinstance(out[0], list):
-                    out = out[0]
-                vecs.append(out)
-            return vecs
+            # ❗ 핵심: 한 번에 리스트로 보내고, 모델 준비될 때까지 기다리고, 재시도
+            max_retries = 3
+            backoff = 2.0
+            last_err = None
+
+            # 너무 긴 문장은 잘라서 타임아웃 방지 (필요시 조정)
+            clipped = [t[:2000] for t in texts]
+
+            for attempt in range(1, max_retries + 1):
+                try:
+                    out = self.client.feature_extraction(
+                        clipped,
+                        timeout=60,           # 60초까지 대기
+                        wait_for_model=True,  # 콜드 스타트 기다리기
+                    )
+                     # 반환: List[vector] 또는 List[token_vectors]
+                    # 각 항목을 1D 벡터로 통일
+                    return [_to_1d_vector(item) for item in out]
+                    
+                except Exception as e:
+                    last_err = e
+                    if attempt == max_retries:
+                        raise
+                    time.sleep(backoff)
+                    backoff *= 2.0
+
+            raise last_err  # 안전망
+        
 
         elif self.provider == "local":
             return self.st_model.encode(texts, normalize_embeddings=True).tolist()
