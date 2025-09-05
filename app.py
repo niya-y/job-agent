@@ -11,6 +11,7 @@ from utils.parsing import normalize_text
 
 
 
+
 # --- Secrets & Config ---
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY", ""))
 HF_TOKEN = st.secrets.get("HF_TOKEN", os.getenv("HF_TOKEN", ""))
@@ -23,6 +24,7 @@ TEXT_MODEL = st.secrets.get("HF_TEXT_MODEL", os.getenv("HF_TEXT_MODEL", "Hugging
 
 TOP_K = int(st.secrets.get("TOP_K", os.getenv("TOP_K", 6)))
 
+st.caption(f"[debug] embed_provider={st.session_state.get('embed_provider', EMBED_PROVIDER)}")
 
 st.set_page_config(page_title="Job Agent", page_icon="💼", layout="wide")
 st.title("💼 Job Application Agent")
