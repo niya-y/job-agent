@@ -62,14 +62,9 @@ class EmbeddingClient:
 
             for attempt in range(1, max_retries + 1):
                 try:
-                    out = self.client.feature_extraction(
-                        clipped,
-                        wait_for_model=True,  # 콜드 스타트 기다리기
-                    )
-                     # 반환: List[vector] 또는 List[token_vectors]
-                    # 각 항목을 1D 벡터로 통일
+                    # ❗ feature_extraction에는 wait_for_model/timeout 인자가 없습니다.
+                    out = self.client.feature_extraction(clipped)
                     return [_to_1d_vector(item) for item in out]
-                    
                 except Exception as e:
                     last_err = e
                     if attempt == max_retries:
