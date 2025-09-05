@@ -1,0 +1,13 @@
+# virtual env
+.venv/
+
+
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+
+
+# local env
+.env
+.streamlit/secrets.toml
+vectorstore/

@@ -1,0 +1,15 @@
+{
+"summary": "데이터 분석가/AI 엔지니어. Python/SQL 기반 분석 및 LLM 응용 경험.",
+"experiences": [
+{
+"company": "ABC Corp",
+"title": "Data Analyst",
+"description": "Python, SQL, Pandas로 매출/이탈 분석. Tableau 대시보드 운영. A/B 테스트 설계."
+},
+{
+"company": "Side Project",
+"title": "AI Agent Dev",
+"description": "LangChain+OpenAI로 JD-이력서 매칭 프로토타입. FAISS로 유사도 검색 구축."
+}
+]
+}
