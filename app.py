@@ -13,9 +13,14 @@ from utils.parsing import normalize_text
 
 # --- Secrets & Config ---
 OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", os.getenv("OPENAI_API_KEY", ""))
-EMBED_PROVIDER = st.secrets.get("EMBED_PROVIDER", os.getenv("EMBED_PROVIDER", "openai"))
-MODEL_NAME = st.secrets.get("MODEL_NAME", os.getenv("MODEL_NAME", "gpt-4o-mini"))
-EMBED_MODEL = st.secrets.get("EMBED_MODEL", os.getenv("EMBED_MODEL", "text-embedding-3-small"))
+HF_TOKEN = st.secrets.get("HF_TOKEN", os.getenv("HF_TOKEN", ""))
+
+EMBED_PROVIDER = st.secrets.get("EMBED_PROVIDER", os.getenv("EMBED_PROVIDER", "huggingface"))
+EMBED_MODEL = st.secrets.get("EMBED_MODEL", os.getenv("EMBED_MODEL", os.getenv("HF_EMBED_MODEL", "sentence-transformers/all-MiniLM-L6-v2")))
+TEXT_PROVIDER_DEFAULT = "huggingface" if HF_TOKEN else ("openai" if OPENAI_API_KEY else "rule")
+TEXT_MODEL = st.secrets.get("HF_TEXT_MODEL", os.getenv("HF_TEXT_MODEL", "HuggingFaceH4/zephyr-7b-beta"))
+
+
 TOP_K = int(st.secrets.get("TOP_K", os.getenv("TOP_K", 6)))
 
 
@@ -25,12 +30,15 @@ st.caption("JD → 요건 추출 → 이력서 매칭 → 맞춤 초안 생성")
 
 with st.sidebar:
     st.header("⚙️ 설정")
-    st.write("환경 변수(Secrets)로 설정하는 것을 권장합니다.")
-    if not OPENAI_API_KEY:
-        st.warning("OPENAI_API_KEY가 설정되지 않았습니다. 상단 우측의 ▸ Manage app → Settings → Secrets에서 설정하세요.")
-    st.text_input("LLM 모델", value=MODEL_NAME, key="model_name")
+    st.selectbox("임베딩 프로바이더", options=["huggingface","openai","local"], index=["huggingface","openai","local"].index(EMBED_PROVIDER), key="embed_provider")
     st.text_input("임베딩 모델", value=EMBED_MODEL, key="embed_model")
     st.number_input("Top-K 매칭 개수", min_value=1, max_value=20, value=TOP_K, step=1, key="top_k")
+
+
+    st.markdown("---")
+    st.selectbox("텍스트 생성 프로바이더", options=["huggingface","openai","rule"], index=["huggingface","openai","rule"].index(TEXT_PROVIDER_DEFAULT), key="text_provider")
+    st.text_input("텍스트 생성 모델", value=TEXT_MODEL, key="text_model")
+    st.radio("Writer 모드", options=["auto","llm","rule"], index=0, key="writer_mode", horizontal=True)
 
 # --- Resume Loader ---
 st.subheader("1) 이력서/경험 데이터 업로드")
@@ -89,10 +97,10 @@ st.subheader("3) 이력서 경험 매칭 (FAISS)")
 if st.button("매칭 실행"):
     with st.spinner("임베딩 및 매칭 중..."):
         matcher = ResumeMatcher(
-            embed_provider=EMBED_PROVIDER,
-            embed_model=st.session_state.get("embed_model", EMBED_MODEL),
-            api_key=OPENAI_API_KEY,
-            index_dir="vectorstore"
+        embed_provider=st.session_state.get("embed_provider", EMBED_PROVIDER),
+        embed_model=st.session_state.get("embed_model", EMBED_MODEL),
+        api_key=(HF_TOKEN if st.session_state.get("embed_provider", EMBED_PROVIDER)=="huggingface" else OPENAI_API_KEY),
+        index_dir="vectorstore"
         )
         matcher.build_or_load_index(resume_data)
         keywords = st.session_state.get("jd_keywords", [])
@@ -114,7 +122,12 @@ if st.button("초안 생성"):
         st.warning("먼저 매칭을 실행하세요.")
     else:
         with st.spinner("초안 생성 중..."):
-            writer = CoverLetterWriter(api_key=OPENAI_API_KEY, model=st.session_state.get("model_name", MODEL_NAME))
+            writer = CoverLetterWriter(
+                api_key=(HF_TOKEN if st.session_state.get("text_provider", TEXT_PROVIDER_DEFAULT)=="huggingface" else OPENAI_API_KEY),
+                model=st.session_state.get("text_model", TEXT_MODEL),
+                mode=st.session_state.get("writer_mode", "auto"),
+                provider=st.session_state.get("text_provider", TEXT_PROVIDER_DEFAULT),
+            )
             jd_raw = st.session_state.get("jd_raw", {"clean_text": jd_text, "keywords": []})
             draft = writer.generate_draft(jd_raw, matches)
         st.success("생성 완료")
