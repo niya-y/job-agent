@@ -64,7 +64,6 @@ class EmbeddingClient:
                 try:
                     out = self.client.feature_extraction(
                         clipped,
-                        timeout=60,           # 60초까지 대기
                         wait_for_model=True,  # 콜드 스타트 기다리기
                     )
                      # 반환: List[vector] 또는 List[token_vectors]
@@ -78,9 +77,7 @@ class EmbeddingClient:
                     time.sleep(backoff)
                     backoff *= 2.0
 
-            raise last_err  # 안전망
         
-
         elif self.provider == "local":
             return self.st_model.encode(texts, normalize_embeddings=True).tolist()
 
