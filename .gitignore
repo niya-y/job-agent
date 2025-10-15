@@ -11,3 +11,6 @@ __pycache__/
 .env
 .streamlit/secrets.toml
 vectorstore/
+
+# claude
+.claude/
