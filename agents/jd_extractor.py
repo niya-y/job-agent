@@ -1,69 +1,350 @@
+"""
+JD Extractor for International Job Postings
+Uses JobSpanBERT for accurate skill extraction from English job descriptions
+"""
+
 import re
+import os
 import requests
 from bs4 import BeautifulSoup
-from typing import Dict, List
-from utils.parsing import html_to_text, normalize_text
+from typing import Dict, List, Optional
+from transformers import AutoTokenizer, AutoModelForTokenClassification, pipeline
 
 
-STOPWORDS = {"및", "등", "및/또는", "그리고", "또는"}
+# English stopwords for JD parsing
+STOPWORDS = {
+    "and", "or", "the", "a", "an", "in", "on", "at", "to", "for",
+    "of", "with", "by", "from", "up", "about", "into", "through"
+}
 
+# Key section patterns for English JDs
+KEY_PATTERNS = [
+    # Requirements/Qualifications section
+    r"(?:Requirements?|Qualifications?|What [Ww]e'?re? [Ll]ooking [Ff]or|Skills? [Rr]equired?)[\s\S]*?(?=Responsibilities|Benefits|About|Nice to Have|Preferred|$)",
+    
+    # Responsibilities section  
+    r"(?:Responsibilities|What [Yy]ou'?ll [Dd]o|Your [Rr]ole|Job [Dd]escription)[\s\S]*?(?=Requirements|Benefits|About|Qualifications|$)",
+    
+    # Nice to have / Preferred
+    r"(?:Nice to [Hh]ave|Preferred|Bonus|Plus|Optional)[\s\S]*?(?=Benefits|About|$)"
+]
 
-SKILL_HINTS = [
-"python", "sql", "pandas", "numpy", "tensorflow", "pytorch", "spark", "airflow",
-"powerbi", "tableau", "aws", "gcp", "azure", "mlops", "docker", "kubernetes",
-"llm", "nlp", "genai", "prompt", "faiss", "pinecone", "weaviate"
+# Company domains to clean from scraped content
+NOISE_PATTERNS = [
+    r"Apply\s+(?:now|here|today)",
+    r"(?:Follow|Like|Share)\s+us\s+on",
+    r"Cookie\s+(?:policy|settings?)",
+    r"Privacy\s+(?:policy|statement)",
+    r"©\s*\d{4}",
+    r"All\s+rights\s+reserved"
 ]
 
 
-KEY_PATTERNS = [r"자격요건[\s\S]*?(?=우대|주요업무|업무내용|우대사항|혜택|$)", r"주요업무[\s\S]*?(?=자격|우대|혜택|$)"]
-
-
+class SkillExtractor:
+    """Extract skills using JobSpanBERT NER model"""
+    
+    def __init__(self, model_name: str = "jjzha/jobspanbert-base-cased"):
+        self.model_name = model_name
+        self._ner_pipeline = None
+        
+    @property
+    def ner_pipeline(self):
+        """Lazy load the NER pipeline"""
+        if self._ner_pipeline is None:
+            print(f"Loading skill extraction model: {self.model_name}...")
+            try:
+                self._ner_pipeline = pipeline(
+                    "ner",
+                    model=self.model_name,
+                    tokenizer=self.model_name,
+                    aggregation_strategy="simple",
+                    device=-1  # Use CPU, change to 0 for GPU
+                )
+            except Exception as e:
+                print(f"Warning: Could not load JobSpanBERT: {e}")
+                print("Falling back to keyword extraction")
+                self._ner_pipeline = None
+        return self._ner_pipeline
+    
+    def extract_skills(self, text: str, max_length: int = 5000) -> List[str]:
+        """
+        Extract skills using NER model
+        
+        Args:
+            text: Job description text
+            max_length: Maximum text length (for long JDs)
+            
+        Returns:
+            List of unique skills
+        """
+        # Truncate if too long (JobSpanBERT has token limit)
+        if len(text) > max_length:
+            text = text[:max_length]
+        
+        if self.ner_pipeline is None:
+            # Fallback to simple keyword extraction
+            return self._fallback_extraction(text)
+        
+        try:
+            # Run NER
+            entities = self.ner_pipeline(text)
+            
+            # Extract skill entities
+            skills = []
+            for entity in entities:
+                # Filter by entity type and confidence
+                if entity.get('entity_group') in ['Skill', 'SKILL'] and entity.get('score', 0) > 0.5:
+                    skill = entity['word'].strip()
+                    # Clean up tokenization artifacts
+                    skill = skill.replace(' ##', '').replace('##', '')
+                    if len(skill) > 1 and skill not in STOPWORDS:
+                        skills.append(skill)
+            
+            # Remove duplicates while preserving order
+            seen = set()
+            unique_skills = []
+            for skill in skills:
+                skill_lower = skill.lower()
+                if skill_lower not in seen:
+                    seen.add(skill_lower)
+                    unique_skills.append(skill)
+            
+            return unique_skills[:50]  # Limit to top 50
+            
+        except Exception as e:
+            print(f"Error in skill extraction: {e}")
+            return self._fallback_extraction(text)
+    
+    def _fallback_extraction(self, text: str) -> List[str]:
+        """Simple regex-based skill extraction as fallback"""
+        # Common tech skills patterns
+        tech_patterns = [
+            r'\b(?:Python|Java|JavaScript|TypeScript|Ruby|Go|Rust|C\+\+|C#|PHP)\b',
+            r'\b(?:React|Angular|Vue|Node\.js|Django|Flask|Spring|\.NET)\b',
+            r'\b(?:SQL|PostgreSQL|MySQL|MongoDB|Redis|Cassandra|DynamoDB)\b',
+            r'\b(?:AWS|Azure|GCP|Docker|Kubernetes|Jenkins|Git|CI/CD)\b',
+            r'\b(?:Machine Learning|Deep Learning|NLP|Computer Vision|MLOps)\b',
+            r'\b(?:Agile|Scrum|Kanban|JIRA|Confluence)\b'
+        ]
+        
+        skills = []
+        for pattern in tech_patterns:
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            skills.extend(matches)
+        
+        # Remove duplicates
+        return list(dict.fromkeys(skills))[:30]
 
 
 def _extract_sections(text: str) -> List[str]:
+    """Extract key sections from JD text"""
     sections = []
-    for pat in KEY_PATTERNS:
-        m = re.search(pat, text, flags=re.IGNORECASE)
-        if m:
-            sections.append(m.group(0))
-    return sections or [text]
+    for pattern in KEY_PATTERNS:
+        match = re.search(pattern, text, flags=re.IGNORECASE | re.MULTILINE)
+        if match:
+            section = match.group(0).strip()
+            sections.append(section)
+    
+    # If no sections found, use full text
+    return sections if sections else [text]
 
 
+def _clean_scraped_text(text: str) -> str:
+    """Remove common noise from scraped job postings"""
+    # Remove noise patterns
+    for pattern in NOISE_PATTERNS:
+        text = re.sub(pattern, '', text, flags=re.IGNORECASE)
+    
+    # Remove excessive whitespace
+    text = re.sub(r'\n\s*\n', '\n\n', text)
+    text = re.sub(r' +', ' ', text)
+    
+    return text.strip()
 
 
-def _simple_keywords(text: str, limit: int = 30) -> List[str]:
-    text_norm = normalize_text(text)
-    tokens = re.findall(r"[a-zA-Z가-힣0-9+#.]+", text_norm)
-    # 빈도 기반 + 힌트 스킬 우선
-    counts = {}
-    for t in tokens:
-        if len(t) < 2 or t in STOPWORDS:
-            continue
-        counts[t] = counts.get(t, 0) + 1
-    ranked = sorted(counts.items(), key=lambda x: x[1], reverse=True)
-    base = [w for w, _ in ranked[:limit]]
-    # 힌트 스킬을 앞쪽에 보정
-    hints = [s for s in SKILL_HINTS if s in counts]
-    return list(dict.fromkeys(hints + base))
+def extract_jd_from_url(
+    url: str, 
+    skill_extractor: Optional[SkillExtractor] = None
+) -> Dict:
+    """
+    Extract job description from URL
+    
+    Args:
+        url: Job posting URL (LinkedIn, Indeed, company sites)
+        skill_extractor: Optional SkillExtractor instance (reuse model)
+        
+    Returns:
+        Dict with clean_text, sections, keywords, skills, source_url
+    """
+    try:
+        # Fetch with proper headers
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        resp = requests.get(url, headers=headers, timeout=15)
+        resp.raise_for_status()
+        
+        # Parse HTML
+        soup = BeautifulSoup(resp.text, "html.parser")
+        
+        # Remove script and style tags
+        for tag in soup(["script", "style", "nav", "footer", "header"]):
+            tag.decompose()
+        
+        # Extract main content
+        main = soup.find('main') or soup.find('article') or soup.body or soup
+        clean_text = main.get_text(separator='\n', strip=True)
+        
+        # Clean up
+        clean_text = _clean_scraped_text(clean_text)
+        
+        # Extract sections
+        sections = _extract_sections(clean_text)
+        
+        # Extract skills with NER model
+        if skill_extractor is None:
+            skill_extractor = SkillExtractor()
+        
+        combined_text = '\n'.join(sections)
+        skills = skill_extractor.extract_skills(combined_text)
+        
+        # Also extract general keywords for backup
+        keywords = _extract_keywords(combined_text, exclude_skills=skills)
+        
+        return {
+            "clean_text": clean_text,
+            "sections": sections,
+            "skills": skills,  # NER-extracted skills
+            "keywords": keywords,  # General keywords
+            "source_url": url,
+            "success": True
+        }
+        
+    except Exception as e:
+        print(f"Error extracting from URL: {e}")
+        return {
+            "clean_text": "",
+            "sections": [],
+            "skills": [],
+            "keywords": [],
+            "source_url": url,
+            "success": False,
+            "error": str(e)
+        }
 
 
+def extract_jd_from_text(
+    text: str,
+    skill_extractor: Optional[SkillExtractor] = None
+) -> Dict:
+    """
+    Extract job description from plain text
+    
+    Args:
+        text: Job description text
+        skill_extractor: Optional SkillExtractor instance
+        
+    Returns:
+        Dict with clean_text, sections, keywords, skills
+    """
+    # Clean text
+    clean_text = _clean_scraped_text(text)
+    
+    # Extract sections
+    sections = _extract_sections(clean_text)
+    
+    # Extract skills
+    if skill_extractor is None:
+        skill_extractor = SkillExtractor()
+    
+    combined_text = '\n'.join(sections)
+    skills = skill_extractor.extract_skills(combined_text)
+    
+    # General keywords
+    keywords = _extract_keywords(combined_text, exclude_skills=skills)
+    
+    return {
+        "clean_text": clean_text,
+        "sections": sections,
+        "skills": skills,
+        "keywords": keywords,
+        "source": "manual_input",
+        "success": True
+    }
 
 
-def extract_jd_from_url(url: str) -> Dict:
-    resp = requests.get(url, timeout=15)
-    resp.raise_for_status()
-    soup = BeautifulSoup(resp.text, "html.parser")
-    main = soup.body or soup
-    clean = html_to_text(str(main))
-    sections = _extract_sections(clean)
-    keywords = _simple_keywords("\n".join(sections))
-    return {"clean_text": clean, "sections": sections, "keywords": keywords, "source_url": url}
+def _extract_keywords(text: str, exclude_skills: List[str] = None, limit: int = 30) -> List[str]:
+    """
+    Extract general keywords (non-skill terms)
+    Used as backup when skill extraction fails
+    """
+    if exclude_skills is None:
+        exclude_skills = []
+    
+    # Normalize
+    text = text.lower()
+    
+    # Extract alphanumeric tokens
+    tokens = re.findall(r'\b[a-z][a-z0-9+#.-]{2,}\b', text)
+    
+    # Count frequency
+    freq = {}
+    for token in tokens:
+        if token not in STOPWORDS and token not in [s.lower() for s in exclude_skills]:
+            freq[token] = freq.get(token, 0) + 1
+    
+    # Sort by frequency
+    sorted_keywords = sorted(freq.items(), key=lambda x: x[1], reverse=True)
+    
+    return [word for word, _ in sorted_keywords[:limit]]
 
 
+# Convenience function for batch processing
+def extract_multiple_jds(
+    sources: List[str],
+    is_url: bool = True
+) -> List[Dict]:
+    """
+    Extract multiple JDs efficiently (reuses model)
+    
+    Args:
+        sources: List of URLs or text strings
+        is_url: Whether sources are URLs (True) or text (False)
+        
+    Returns:
+        List of extraction results
+    """
+    # Initialize model once
+    skill_extractor = SkillExtractor()
+    
+    results = []
+    for source in sources:
+        if is_url:
+            result = extract_jd_from_url(source, skill_extractor)
+        else:
+            result = extract_jd_from_text(source, skill_extractor)
+        results.append(result)
+    
+    return results
 
 
-def extract_jd_from_text(text: str) -> Dict:
-    clean = normalize_text(text)
-    sections = _extract_sections(clean)
-    keywords = _simple_keywords("\n".join(sections))
-    return {"clean_text": clean, "sections": sections, "keywords": keywords, "source": "manual"}
+if __name__ == "__main__":
+    # Test with example
+    sample_jd = """
+    Senior Data Engineer - Remote
+    
+    Requirements:
+    - 5+ years of experience with Python and SQL
+    - Strong knowledge of Apache Spark and Airflow
+    - Experience with AWS (S3, Redshift, Lambda)
+    - Excellent communication skills
+    
+    Responsibilities:
+    - Build scalable ETL pipelines
+    - Optimize data warehouse performance
+    - Collaborate with data scientists
+    """
+    
+    result = extract_jd_from_text(sample_jd)
+    print("Extracted Skills:", result['skills'])
+    print("Keywords:", result['keywords'])

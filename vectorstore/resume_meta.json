@@ -1,0 +1,8 @@
+[
+  "Company: Tech Corp | Role: Senior Data Engineer | Details: Led the redesign of company's data warehouse architecture, reducing query times by 60% and saving $50K annually in compute costs. Implemented real-time streaming pipeline using Apache Kafka and Spark processing 10M+ events daily with 99.9% uptime. Built automated ETL workflows using Airflow managing 500+ data pipelines.",
+  "kflows using Airflow managing 500+ data pipelines. Mentored team of 3 junior engineers who became key contributors within 6 months.",
+  "Company: DataFlow Solutions | Role: Data Engineer | Details: Developed ETL pipelines using Python and SQL processing 2TB of data daily across AWS S3, Redshift, and RDS. Created data quality framework reducing data errors by 80% through automated validation rules. Optimized PostgreSQL database performance improving query speed by 3x through indexing strategies.",
+  "ing query speed by 3x through indexing strategies. Collaborated with data scientists to deploy ML models into production using Docker and Kubernetes.",
+  "Company: Startup Analytics | Role: Junior Data Analyst | Details: Built interactive dashboards using Tableau and Power BI enabling executive decision-making with real-time metrics. Automated manual reporting processes using Python scripts saving 15 hours per week. Performed exploratory data analysis on customer behavior data uncovering insights that increased conversion by 12%.",
+  "overing insights that increased conversion by 12%. Learned SQL and Python fundamentals through self-study and online courses."
+]

@@ -1,0 +1,88 @@
+{
+  "personal": {
+    "name": "Your Name",
+    "email": "your.email@example.com",
+    "phone": "+1-XXX-XXX-XXXX",
+    "linkedin": "https://linkedin.com/in/yourprofile",
+    "github": "https://github.com/yourusername"
+  },
+  "summary": "Experienced professional with X years in [your field]. Specialized in [key skills].",
+  "experiences": [
+    {
+      "title": "Senior Data Engineer",
+      "company": "Tech Company Inc",
+      "location": "San Francisco, CA",
+      "duration": "2020-2023",
+      "description": "Built scalable data pipelines processing 10TB+ daily using Python and Apache Spark. Reduced query time by 40% through optimization. Mentored 3 junior engineers.",
+      "skills": [
+        "Python",
+        "Apache Spark",
+        "AWS",
+        "SQL",
+        "Airflow",
+        "Docker"
+      ],
+      "achievements": [
+        "Increased data processing speed by 3x",
+        "Reduced infrastructure costs by 25%",
+        "Implemented CI/CD pipeline for data workflows"
+      ]
+    },
+    {
+      "title": "Data Engineer",
+      "company": "Previous Company Ltd",
+      "location": "Remote",
+      "duration": "2018-2020",
+      "description": "Developed ETL pipelines for customer analytics. Worked with PostgreSQL, Redis, and Kafka streaming. Collaborated with data science team to deploy ML models.",
+      "skills": [
+        "Python",
+        "SQL",
+        "PostgreSQL",
+        "Kafka",
+        "Redis",
+        "Kubernetes"
+      ],
+      "achievements": [
+        "Built real-time analytics dashboard serving 1M+ users",
+        "Improved data quality by implementing automated validation"
+      ]
+    },
+    {
+      "title": "Junior Data Analyst",
+      "company": "Startup Co",
+      "location": "New York, NY",
+      "duration": "2016-2018",
+      "description": "Analyzed user behavior data using SQL and Python. Created dashboards in Tableau. Supported business decisions with data-driven insights.",
+      "skills": [
+        "SQL",
+        "Python",
+        "Tableau",
+        "Excel",
+        "Data Analysis"
+      ],
+      "achievements": [
+        "Identified key growth opportunities leading to 15% revenue increase",
+        "Automated reporting saving 10 hours/week"
+      ]
+    }
+  ],
+  "education": [
+    {
+      "degree": "Bachelor of Science in Computer Science",
+      "school": "University Name",
+      "year": "2016",
+      "gpa": "3.8/4.0"
+    }
+  ],
+  "certifications": [
+    "AWS Certified Solutions Architect",
+    "Google Cloud Professional Data Engineer"
+  ],
+  "skills": {
+    "programming": ["Python", "SQL", "Java", "JavaScript"],
+    "data": ["Apache Spark", "Airflow", "Kafka", "ETL"],
+    "cloud": ["AWS", "GCP", "Azure"],
+    "databases": ["PostgreSQL", "MySQL", "MongoDB", "Redis"],
+    "tools": ["Docker", "Kubernetes", "Git", "Jenkins"]
+  }
+}
