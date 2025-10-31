@@ -116,24 +116,134 @@ class SkillExtractor:
             return self._fallback_extraction(text)
     
     def _fallback_extraction(self, text: str) -> List[str]:
-        """Simple regex-based skill extraction as fallback"""
-        # Common tech skills patterns
+        """Enhanced skill extraction - works across all industries"""
+        skills = set()
+        
+        # 1. Extract acronyms (PSM, PHA, NFPA, IEC, OSHA, etc.)
+        acronyms = re.findall(r'\b[A-Z]{2,6}\b', text)
+        for acronym in acronyms:
+            # Filter out common words that are all caps and noise
+            if acronym not in {'AND', 'OR', 'THE', 'FOR', 'WITH', 'FROM', 'NOT', 'HAS', 'ARE', 'CAN', 'ALL', 'BUT', 'HIS', 'HER', 'OUR'}:
+                skills.add(acronym)
+        
+        # 2. Extract phrases in parentheses (often skill definitions)
+        # e.g., "Process Safety Management (PSM)" → extract both
+        paren_matches = re.findall(r'([A-Z][A-Za-z\s&-]+)\s*\(([A-Z]{2,6})\)', text)
+        for full_name, abbrev in paren_matches:
+            full_name = full_name.strip()
+            if len(full_name) > 3:
+                skills.add(full_name)
+                skills.add(abbrev)
+        
+        # 3. IT & Software (original patterns)
         tech_patterns = [
-            r'\b(?:Python|Java|JavaScript|TypeScript|Ruby|Go|Rust|C\+\+|C#|PHP)\b',
-            r'\b(?:React|Angular|Vue|Node\.js|Django|Flask|Spring|\.NET)\b',
-            r'\b(?:SQL|PostgreSQL|MySQL|MongoDB|Redis|Cassandra|DynamoDB)\b',
-            r'\b(?:AWS|Azure|GCP|Docker|Kubernetes|Jenkins|Git|CI/CD)\b',
-            r'\b(?:Machine Learning|Deep Learning|NLP|Computer Vision|MLOps)\b',
-            r'\b(?:Agile|Scrum|Kanban|JIRA|Confluence)\b'
+            r'\b(?:Python|Java|JavaScript|TypeScript|Ruby|Go|Rust|C\+\+|C#|PHP|R|MATLAB|Scala|Kotlin|Swift)\b',
+            r'\b(?:React|Angular|Vue|Node\.js|Django|Flask|Spring|\.NET|Express|Laravel)\b',
+            r'\b(?:SQL|PostgreSQL|MySQL|MongoDB|Redis|Cassandra|DynamoDB|Oracle|NoSQL)\b',
+            r'\b(?:AWS|Azure|GCP|Docker|Kubernetes|Jenkins|Git|CI/CD|Terraform|Ansible)\b',
+            r'\b(?:Machine Learning|Deep Learning|NLP|Computer Vision|MLOps|AI)\b',
+            r'\b(?:Agile|Scrum|Kanban|JIRA|Confluence|DevOps)\b'
         ]
         
-        skills = []
-        for pattern in tech_patterns:
-            matches = re.findall(pattern, text, re.IGNORECASE)
-            skills.extend(matches)
+        # 4. Engineering & Technical domains
+        engineering_patterns = [
+            r'\b(?:Chemical Engineering|Mechanical Engineering|Electrical Engineering|Civil Engineering|Industrial Engineering)\b',
+            r'\b(?:Process Safety|Risk Assessment|Risk Management|Safety Management|Hazard Analysis)\b',
+            r'\b(?:Project Management|PMP|Six Sigma|Lean|Quality Assurance|QA|Quality Control)\b',
+            r'\b(?:Regulatory Compliance|Compliance|Auditing|Standards|Certification)\b',
+            r'\b(?:Data Analysis|Statistical Analysis|Analytics|Business Intelligence|BI)\b',
+            r'\b(?:CAD|AutoCAD|SolidWorks|MATLAB|Simulink)\b'
+        ]
         
-        # Remove duplicates
-        return list(dict.fromkeys(skills))[:30]
+        # 5. Business & Management
+        business_patterns = [
+            r'\b(?:Leadership|Team Management|People Management|Stakeholder Management)\b',
+            r'\b(?:Strategic Planning|Business Development|Market Research|Strategy)\b',
+            r'\b(?:Communication|Presentation|Negotiation|Problem Solving)\b',
+            r'\b(?:Financial Analysis|Budget Management|Cost Control|Budgeting)\b'
+        ]
+        
+        # Apply all patterns
+        all_patterns = tech_patterns + engineering_patterns + business_patterns
+        for pattern in all_patterns:
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            skills.update(matches)
+        
+        # 6. Extract capitalized phrases (likely skills/tools/methods)
+        # e.g., "Process Hazard Analyses", "National Fire Protection Association"
+        cap_phrases = re.findall(r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,4}\b', text)
+        for phrase in cap_phrases:
+            phrase = phrase.strip()
+            words = phrase.split()
+            
+            # Filter out common non-skill phrases
+            if (len(words) >= 2 and 
+                phrase not in {
+                    'Bachelor Degree', 'Working Experience', 'Job Requirements',
+                    'Nice Have', 'Key Client', 'Minimum Years', 'Job Description',
+                    'Job Requirements', 'Technical Knowledge', 'Skills Required',
+                    'North America', 'South America', 'United States', 'United Kingdom'
+                } and
+                # Must not start with generic words
+                words[0].lower() not in {'degree', 'job', 'working', 'technical', 'skills', 'minimum', 'years'}):
+                skills.add(phrase)
+        
+        # Clean up and filter
+        cleaned_skills = []
+        
+        # Noise patterns to exclude
+        noise_patterns = [
+            r'^(and|or|the|with|from|for|about)$',
+            r'^\w{1,2}$',  # Single/two letter words (except acronyms already added)
+            r'\n',  # Contains newlines
+            r'^\d+',  # Starts with number
+            r'^(local|cross|standards?)$',  # Too generic
+            r'^Job\s',  # Job-related headers
+            r'^Working\s',  # Working-related headers
+            r'Qualifications?\s*$',  # Section headers
+            r'^(in|on|at|to|by)\s'  # Prepositions
+        ]
+        
+        for skill in skills:
+            skill = skill.strip()
+            
+            # Skip if matches noise patterns
+            is_noise = False
+            for noise_pattern in noise_patterns:
+                if re.match(noise_pattern, skill, re.IGNORECASE):
+                    is_noise = True
+                    break
+            
+            if is_noise:
+                continue
+            
+            # Remove if too short, too long, or is a stopword
+            if 2 <= len(skill) <= 60 and skill.lower() not in STOPWORDS:
+                # Remove trailing punctuation
+                skill = re.sub(r'[.,;:]+$', '', skill)
+                # Must start with alphanumeric
+                if skill and (skill[0].isalnum() or skill[0] == '.'):
+                    cleaned_skills.append(skill)
+        
+        # Remove duplicates (case-insensitive)
+        seen = set()
+        unique_skills = []
+        for skill in cleaned_skills:
+            skill_lower = skill.lower()
+            # Also check if it's a substring of an existing skill
+            is_duplicate = False
+            for existing in seen:
+                if (skill_lower == existing or 
+                    (len(skill_lower) > 3 and skill_lower in existing) or
+                    (len(existing) > 3 and existing in skill_lower)):
+                    is_duplicate = True
+                    break
+            
+            if not is_duplicate:
+                seen.add(skill_lower)
+                unique_skills.append(skill)
+        
+        return unique_skills[:50]  # Return top 50
 
 
 def _extract_sections(text: str) -> List[str]:

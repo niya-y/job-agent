@@ -228,6 +228,10 @@ class ResumeMatcher:
         Returns:
             List of matching experiences
         """
+        # Ensure skills is a list (not set or other type)
+        if not isinstance(skills, list):
+            skills = list(skills)
+        
         # Create natural language query
         if len(skills) > 30:
             skills = skills[:30]  # Limit for token length

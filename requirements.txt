@@ -1,32 +1,23 @@
-# Core Dependencies
+# Core dependencies
+streamlit>=1.28.0
 python-dotenv>=1.0.0
-requests>=2.31.0
-beautifulsoup4>=4.12.0
-lxml>=5.0.0
 
-# HuggingFace Ecosystem
+# Machine Learning & NLP
 transformers>=4.36.0
-huggingface-hub>=0.20.0
-tokenizers>=0.15.0
-accelerate>=0.25.0  # For faster model loading
+torch>=2.0.0
 sentence-transformers>=2.3.0
 
-# Vector Search
-faiss-cpu>=1.7.4  # Use faiss-gpu if you have CUDA
-numpy>=1.24.0
+# Vector search
+faiss-cpu>=1.7.4
+numpy>=1.24.0,<2.0.0
 
-# Web App
-streamlit>=1.29.0
+# API clients
+huggingface-hub>=0.20.0
+requests>=2.31.0
 
-# NLP Utilities
-spacy>=3.7.0
-# python -m spacy download en_core_web_sm  # Run after install
+# Text processing
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
 
-# Optional: Better parsing
-html2text>=2020.1.16
-markdown>=3.5.0
-
-# Development
-pytest>=7.4.0
-black>=23.0.0
-flake8>=6.1.0
+# Utilities
+pandas>=2.0.0
